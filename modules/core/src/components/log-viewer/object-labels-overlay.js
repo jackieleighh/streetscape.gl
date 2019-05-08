@@ -73,9 +73,9 @@ export default class ObjectLabelsOverlay extends PureComponent {
       return result;
     }
 
-    const {frame, metadata, getTransformMatrix} = this.props;
+    const {frame, metadata, getTransformMatrix, worldTransform} = this.props;
     const streamMetadata = metadata.streams && metadata.streams[streamName];
-    result = resolveCoordinateTransform(frame, streamMetadata, getTransformMatrix);
+    result = resolveCoordinateTransform(frame, streamMetadata, getTransformMatrix, worldTransform);
     // cache calculated coordinate props by stream name
     coordinateProps[streamName] = result;
 

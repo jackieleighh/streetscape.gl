@@ -24,6 +24,7 @@ import PropTypes from 'prop-types';
 import {StaticMap} from 'react-map-gl';
 import DeckGL from '@deck.gl/react';
 import {COORDINATE_SYSTEM} from '@deck.gl/core';
+import {Matrix4} from 'math.gl';
 
 import ObjectLabelsOverlay from './object-labels-overlay';
 
@@ -142,8 +143,15 @@ export default class Core3DViewer extends PureComponent {
         styleParser: this._getStyleParser(nextProps)
       });
     }
-    if (this.props.frame !== nextProps.frame) {
+    if (this.props.frame !== nextProps.frame && nextProps.frame) {
       stats.get('frame-update').incrementCount();
+
+      const vehiclePosition = nextProps.frame.vehicleRelativeTransform.transformPoint([0, 0, 0]);
+      // Shift the entire world downward so that the vehicle is always on the ground (z = 0)
+      // TODO - support drone use case
+      this.setState({
+        worldTransform: new Matrix4().translate([0, 0, -vehiclePosition.z])
+      });
     }
   }
 
@@ -199,6 +207,7 @@ export default class Core3DViewer extends PureComponent {
   }
 
   _getCarLayer() {
+    const {worldTransform} = this.state;
     const {frame, car} = this.props;
     const {
       origin = DEFAULT_ORIGIN,
@@ -218,6 +227,7 @@ export default class Core3DViewer extends PureComponent {
       getTransformMatrix: d =>
         frame.vehicleRelativeTransform
           .clone()
+          .multiplyRight(worldTransform)
           .translate(origin)
           .scale(scale),
       mesh,
@@ -233,6 +243,7 @@ export default class Core3DViewer extends PureComponent {
   }
 
   _getLayers() {
+    const {worldTransform} = this.state;
     const {
       frame,
       metadata,
@@ -266,7 +277,8 @@ export default class Core3DViewer extends PureComponent {
           const coordinateProps = resolveCoordinateTransform(
             frame,
             streamMetadata,
-            getTransformMatrix
+            getTransformMatrix,
+            worldTransform
           );
 
           const stylesheet = styleParser.getStylesheet(streamName);
@@ -308,7 +320,7 @@ export default class Core3DViewer extends PureComponent {
           const streamMetadata = getStreamMetadata(metadata, props.streamName);
           Object.assign(
             additionalProps,
-            resolveCoordinateTransform(frame, streamMetadata, getTransformMatrix),
+            resolveCoordinateTransform(frame, streamMetadata, getTransformMatrix, worldTransform),
             {
               data: stream && stream.features
             }
@@ -317,7 +329,7 @@ export default class Core3DViewer extends PureComponent {
           // Apply log-specific coordinate props
           Object.assign(
             additionalProps,
-            resolveCoordinateTransform(frame, props, getTransformMatrix)
+            resolveCoordinateTransform(frame, props, getTransformMatrix, worldTransform)
           );
         } else {
           return layer;
@@ -366,7 +378,7 @@ export default class Core3DViewer extends PureComponent {
       viewMode,
       showMap
     } = this.props;
-    const {styleParser} = this.state;
+    const {styleParser, worldTransform} = this.state;
 
     return (
       <DeckGL
@@ -404,6 +416,7 @@ export default class Core3DViewer extends PureComponent {
           xvizStyleParser={styleParser}
           style={style}
           getTransformMatrix={getTransformMatrix}
+          worldTransform={worldTransform}
         />
 
         {this.props.children}

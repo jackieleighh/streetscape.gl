@@ -27,12 +27,17 @@ import {COORDINATE} from '../constants';
 // keep in sync with core-3d-viewer.js
 const DEFAULT_ORIGIN = [0, 0, 0];
 
-export function resolveCoordinateTransform(frame, streamMetadata = {}, getTransformMatrix) {
+export function resolveCoordinateTransform(
+  frame,
+  streamMetadata = {},
+  getTransformMatrix,
+  worldTransform
+) {
   const {origin, transforms = {}, vehicleRelativeTransform} = frame;
   const {coordinate, transform, pose} = streamMetadata;
 
   let coordinateSystem = COORDINATE_SYSTEM.METER_OFFSETS;
-  let modelMatrix = null;
+  let modelMatrix = worldTransform.clone();
   let streamTransform = transform;
 
   switch (coordinate) {
@@ -43,13 +48,13 @@ export function resolveCoordinateTransform(frame, streamMetadata = {}, getTransf
     case COORDINATE.DYNAMIC:
       // cache calculated transform matrix for each frame
       transforms[transform] = transforms[transform] || getTransformMatrix(transform, frame);
-      modelMatrix = transforms[transform];
+      modelMatrix.multiplyRight(transforms[transform]);
       frame.transforms = transforms;
       streamTransform = null;
       break;
 
     case COORDINATE.VEHICLE_RELATIVE:
-      modelMatrix = vehicleRelativeTransform;
+      modelMatrix.multiplyRight(vehicleRelativeTransform);
       break;
 
     case COORDINATE.IDENTITY:
@@ -61,9 +66,7 @@ export function resolveCoordinateTransform(frame, streamMetadata = {}, getTransf
     streamTransform = new Pose(pose).getTransformationMatrix();
   }
   if (streamTransform) {
-    modelMatrix = modelMatrix
-      ? new Matrix4(modelMatrix).multiplyRight(streamTransform)
-      : streamTransform;
+    modelMatrix = modelMatrix.multiplyRight(streamTransform);
   }
 
   return {
